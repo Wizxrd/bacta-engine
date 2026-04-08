@@ -1,0 +1,50 @@
+{
+    "version": "2.0.0",
+    "inputs": [
+        {
+            "id": "projectPath",
+            "type": "command",
+            "command": "taskbar.getProjectPathForTask"
+        }
+    ],
+    "tasks": [
+        {
+            "label": "Build current project (SFML)",
+            "type": "shell",
+            "command": "C:\\mingw64\\bin\\g++.exe",
+            "args": [
+                "-fdiagnostics-color=always",
+                "-g",
+                "-std=c++20",
+                "-IC:\\SFML-3.0.2\\include",
+                "-Iinclude",
+                "-Ic:\\imgui-1.91.9",
+                "-Ic:\\imgui-sfml-3.0",
+                "c:\\imgui-1.91.9\\imgui.cpp",
+                "c:\\imgui-1.91.9\\imgui_draw.cpp",
+                "c:\\imgui-1.91.9\\imgui_tables.cpp",
+                "c:\\imgui-1.91.9\\imgui_widgets.cpp",
+                "c:\\imgui-sfml-3.0\\imgui-SFML.cpp",
+                "-LC:\\SFML-3.0.2\\lib",
+                "-lsfml-graphics",
+                "-lsfml-audio",
+                "-lsfml-window",
+                "-lsfml-system",
+                "-lopengl32",
+                "-o",
+                "bin/main.exe"
+            ],
+            "options": {
+                "cwd": "d:\\Github\\bacta-engine"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Build selected project with SFML + ImGui-SFML (auto-updated by taskbar for no project)"
+        }
+    ]
+}

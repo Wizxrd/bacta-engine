@@ -1,0 +1,32 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "include",
+                "C:/SFML-3.0.2/include",
+                "c:/imgui-1.91.9",
+                "c:/imgui-sfml-3.0"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "windowsSdkVersion": "10.0.26100.0",
+            "compilerPath": "C:/mingw64/bin/g++.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-gcc-x64",
+            "browse": {
+                "path": [
+                    "include",
+                    "C:/SFML-3.0.2/include",
+                    "c:/imgui-1.91.9",
+                    "c:/imgui-sfml-3.0"
+                ]
+            }
+        }
+    ],
+    "version": 4
+}

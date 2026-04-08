@@ -1,0 +1,146 @@
+{
+    "name": "taskbar",
+    "displayName": "taskbar",
+    "description": "Custom taskbar for C++ projects",
+    "version": "1.1.12",
+    "publisher": "Wizard",
+    "engines": {
+        "vscode": "^1.80.0"
+    },
+    "main": "./extension.js",
+    "activationEvents": [
+        "workspaceContains:.bacta"
+    ],
+    "contributes": {
+        "configuration": {
+            "title": "taskbar",
+            "properties": {
+                "taskbar.compilerPath.mingw64": {
+                    "default": "C:\\mingw64\\bin\\g++.exe",
+                    "description": "Default compiler path for MinGW 64-bit"
+                },
+                "taskbar.compilerPath.mingw32": {
+                    "type": "string",
+                    "default": "C:\\mingw32\\bin\\g++.exe",
+                    "description": "Default compiler path for MinGW 32-bit"
+                },
+                "taskbar.sfml.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include SFML in build (disable for plain C++ projects)"
+                },
+                "taskbar.sfml.include": {
+                    "type": "string",
+                    "default": "C:\\SFML-3.0.2\\include",
+                    "description": "SFML include path (used in build when SFML is enabled)"
+                },
+                "taskbar.sfml.lib": {
+                    "type": "string",
+                    "default": "C:\\SFML-3.0.2\\lib",
+                    "description": "SFML lib path (used in build when SFML is enabled)"
+                },
+                "taskbar.imgui.enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable ImGui-SFML support in generated project build tasks"
+                },
+                "taskbar.imgui.include": {
+                    "type": "string",
+                    "default": "C:\\libs\\imgui",
+                    "description": "Dear ImGui include path"
+                },
+                "taskbar.imgui.sourceDir": {
+                    "type": "string",
+                    "default": "C:\\libs\\imgui",
+                    "description": "Dear ImGui source directory containing imgui.cpp and friends"
+                },
+                "taskbar.imguiSfml.include": {
+                    "type": "string",
+                    "default": "C:\\libs\\imgui-sfml",
+                    "description": "ImGui-SFML include path"
+                },
+                "taskbar.imgui.sfmlCpp": {
+                    "type": "string",
+                    "default": "C:\\libs\\imgui-sfml\\imgui-SFML.cpp",
+                    "description": "Path to imgui-SFML.cpp when compiling sources directly"
+                },
+                "taskbar.imgui.lib": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Library folder for prebuilt imgui and imgui-sfml libraries"
+                },
+                "taskbar.imgui.linkPrebuilt": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Use prebuilt imgui/imgui-sfml libs instead of compiling sources directly"
+                }
+            }
+        },
+        "commands": [
+        {
+            "command": "taskbar.setWorkspaceRoot",
+            "title": "Set Workspace Root"
+        },
+        {
+            "command": "taskbar.setProjectPath",
+            "title": "Set Project Folder"
+        },
+        {
+            "command": "taskbar.newProject",
+            "title": "New SFML Project"
+        },
+        {
+            "command": "taskbar.getProjectPathForTask",
+            "title": "Get Project Path (for tasks)"
+        },
+        {
+            "command": "taskbar.setToolchain",
+            "title": "Select Toolchain"
+        },
+        {
+            "command": "taskbar.setCompilerPath",
+            "title": "Select Compiler Executable"
+        },
+        {
+            "command": "taskbar.setSfmlPath",
+            "title": "Set SFML Path"
+        },
+        {
+            "command": "taskbar.setImGuiMode",
+            "title": "Set ImGui-SFML Mode"
+        },
+        {
+            "command": "taskbar.setSfmlDllModules",
+            "title": "Select SFML DLLs to Copy (from SFML/bin)"
+        },
+        {
+            "command": "taskbar.build",
+            "title": "Build & Compile Project"
+        },
+        {
+            "command": "taskbar.run",
+            "title": "Run Project"
+        },
+        {
+            "command": "taskbar.buildAndRun",
+            "title": "Build, Compile & Run"
+        },
+        {
+            "command": "taskbar.buildAndDebug",
+            "title": "Build, Compile & Debug"
+        },
+        {
+            "command": "taskbar.focusProblems",
+            "title": "Focus Problems View"
+        },
+        {
+            "command": "taskbar.cleanBuild",
+            "title": "Clean Build Output"
+        },
+        {
+            "command": "taskbar.openDocs",
+            "title": "Open C++ / SFML Documentation"
+        }
+        ]
+    }
+}

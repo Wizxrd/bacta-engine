@@ -1,0 +1,8 @@
+{
+	"taskbar.imgui.enabled": true,
+	"taskbar.imgui.include": "c:\\imgui-1.91.9",
+	"taskbar.imgui.sourceDir": "c:\\imgui-1.91.9",
+	"taskbar.imguiSfml.include": "c:\\imgui-sfml-3.0",
+	"taskbar.imgui.sfmlCpp": "c:\\imgui-sfml-3.0\\imgui-SFML.cpp",
+	"taskbar.imgui.linkPrebuilt": false
+}

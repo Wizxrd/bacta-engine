@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug (SFML + ImGui-SFML)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "d:/Github/bacta/projects/top-down-shoota/bin/main.exe",
+            "cwd": "d:/Github/bacta/projects/top-down-shoota",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "D:/libs/SFML/bin;D:/libs/imgui-sfml/bin;${env:PATH}"
+                }
+            ],
+            "preLaunchTask": "Build current project (SFML)"
+        }
+    ]
+}
