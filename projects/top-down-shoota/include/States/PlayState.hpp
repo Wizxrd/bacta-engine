@@ -4,6 +4,7 @@
 #include "Core/StateContext.hpp"
 #include "Core/Soldier.hpp"
 #include "Core/Player.hpp"
+#include "Core/Camera.hpp"
 
 #include <SFML/Graphics/RectangleShape.hpp>
 
@@ -23,19 +24,11 @@ namespace States{
 		private:
 			void initResources();
 			void buildScene();
-			void handlePlayerInput(sf::Time deltaTime);
-			void handlePlayerMouse();
-			void updateCameraLerp(sf::Time deltaTime);
-			void updateZoom(sf::Time deltaTime);
 		private:
 			sf::RectangleShape mBackground;
-			sf::View mWorldView;
-			float mZoom = 1000.f;
-			float mTargetZoom = 1000.f;
-			float mCameraSmooting = 5.f;
-			float mZoomSmoothing = 2.5f;
+			Core::Camera mCamera;
 			Core::StateContext& mContext;
-			Core::Player mPlayer;
 			Core::Soldier mSoldier;
+			Core::Player mPlayer;
 	};
 }

@@ -20,6 +20,7 @@
                 "-Iinclude",
                 "-Ic:\\imgui-1.91.9",
                 "-Ic:\\imgui-sfml-3.0",
+                "src/*.cpp",
                 "c:\\imgui-1.91.9\\imgui.cpp",
                 "c:\\imgui-1.91.9\\imgui_draw.cpp",
                 "c:\\imgui-1.91.9\\imgui_tables.cpp",
@@ -35,7 +36,7 @@
                 "bin/main.exe"
             ],
             "options": {
-                "cwd": "d:\\Github\\bacta-engine"
+                "cwd": "${input:projectPath}"
             },
             "problemMatcher": [
                 "$gcc"
@@ -44,7 +45,7 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "detail": "Build selected project with SFML + ImGui-SFML (auto-updated by taskbar for no project)"
+            "detail": "Build selected project with SFML + ImGui-SFML (auto-updated by taskbar for d:\\Github\\bacta-engine\\projects\\firework-simulator)"
         }
     ]
 }

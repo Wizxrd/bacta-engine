@@ -1,0 +1,3 @@
+{
+	"files.readonlyInclude": {"assets":true, "bin": true, "include": true, "lib": true, "src": true}
+}

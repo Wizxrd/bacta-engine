@@ -10,7 +10,7 @@ namespace Core{
 
 	Application::Application()
 		: mWindow(sf::VideoMode({1280, 720}), "top down shoota")
-		, mContext(mWindow, mResources){
+		, mContext(mWindow, mView, mResources, mInputManager, mSoundManager){
 			mContext.mResources.Fonts.Load(Core::Fonts::Id::Default, "assets/fonts/default.ttf");
 			mContext.mResources.Fonts.Load(Core::Fonts::Id::Header, "assets/fonts/header.ttf");
 			mContext.mResources.Fonts.Load(Core::Fonts::Id::Bold, "assets/fonts/bold.ttf");
@@ -52,6 +52,8 @@ namespace Core{
 	}
 
 	void Application::update(sf::Time deltaTime){
+		mInputManager.Update();
+		mSoundManager.Update();
 		if (!mStateManager.IsEmpty()){
 			mStateManager.GetCurrent().Update(deltaTime);
 		}

@@ -1,52 +1,39 @@
 #pragma once
 
 #include "Core/Soldier.hpp"
-#include <Core/StateContext.hpp>
+#include "Core/StateContext.hpp"
 
-#include <SFML/Window/Event.hpp>
 #include <SFML/Window/Keyboard.hpp>
-#include <SFML/System/Time.hpp>
+#include <SFML/Window/Mouse.hpp>
 
 #include <map>
-#include <functional>
 
 namespace Core{
 	class Player{
 		public:
-			enum MovementAction{
-				MoveLeft,
-				MoveRight,
+			enum Keybind{
 				MoveUp,
 				MoveDown,
-			};
+				MoveLeft,
+				MoveRight,
+				Sprint,
 
-			enum AttackAction{
 				Melee,
-			};
 
-			enum WeaponAction{
 				Knife,
 				Handgun,
-				Rifle,
 				Shotgun,
-				Reload,
-				Shoot
-			};
+				Rifle,
 
+				Reload
+			};
 		public:
-			Player(StateContext& context, Soldier& entity);
-			void HandleEvent(const sf::Event& event);
-			void HandleInput(float radians);
-			void Update(sf::Time deltaTime);
-			bool IsActionPressedOnce(sf::Keyboard::Scancode scancode);
-			bool IsMousePressedOnce(sf::Mouse::Button button);
+			Player(Soldier& soldier, StateContext& context);
+			void Update();
+			const float GetAim();
 		private:
+			Soldier& mSoldier;
 			StateContext& mContext;
-			Soldier* mSoldier;
-			std::map<sf::Keyboard::Scancode, MovementAction> mMovementKeybinds;
-			std::map<sf::Keyboard::Scancode, AttackAction> mAttackKeybinds;
-			std::map<sf::Keyboard::Scancode, WeaponAction> mWeaponKeybinds;
-			std::unordered_map<sf::Keyboard::Scancode, bool> mPreviousKeyStates;
-			std::unordered_map<sf::Mouse::Button, bool> mPreviousMouseStates;
+			std::map<sf::Keyboard::Scancode, Keybind> mKeybinds{};
 	};
 }

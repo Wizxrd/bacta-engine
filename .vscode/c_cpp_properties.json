@@ -3,7 +3,7 @@
         {
             "name": "Win32",
             "includePath": [
-                "include",
+                "d:/Github/bacta-engine/projects/firework-simulator/include",
                 "C:/SFML-3.0.2/include",
                 "c:/imgui-1.91.9",
                 "c:/imgui-sfml-3.0"
@@ -20,7 +20,7 @@
             "intelliSenseMode": "windows-gcc-x64",
             "browse": {
                 "path": [
-                    "include",
+                    "d:/Github/bacta-engine/projects/firework-simulator/include",
                     "C:/SFML-3.0.2/include",
                     "c:/imgui-1.91.9",
                     "c:/imgui-sfml-3.0"

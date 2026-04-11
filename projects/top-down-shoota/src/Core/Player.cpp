@@ -1,157 +1,135 @@
 #include "Core/Player.hpp"
+#include "Core/Weapon.hpp"
+
+#include <SFML/Window/Mouse.hpp>
+#include <SFML/System/Vector2.hpp>
 
 #include <math.h>
 
 namespace Core{
 
-	Player::Player(StateContext& context, Soldier& soldier) : mContext(context), mSoldier(&soldier){
-		mMovementKeybinds[sf::Keyboard::Scancode::W] = MovementAction::MoveUp;
-		mMovementKeybinds[sf::Keyboard::Scancode::S] = MovementAction::MoveDown;
-		mMovementKeybinds[sf::Keyboard::Scancode::A] = MovementAction::MoveLeft;
-		mMovementKeybinds[sf::Keyboard::Scancode::D] = MovementAction::MoveRight;
+	struct Test{
+		Test() = default;
+	};
 
-		mAttackKeybinds[sf::Keyboard::Scancode::F] = AttackAction::Melee;
+	Player::Player(Soldier& soldier, StateContext& context) : mSoldier(soldier), mContext(context){
+		mKeybinds[sf::Keyboard::Scancode::W] = Keybind::MoveUp;
+		mKeybinds[sf::Keyboard::Scancode::S] = Keybind::MoveDown;
+		mKeybinds[sf::Keyboard::Scancode::A] = Keybind::MoveLeft;
+		mKeybinds[sf::Keyboard::Scancode::D] = Keybind::MoveRight;
+		mKeybinds[sf::Keyboard::Scancode::LShift] = Keybind::Sprint;
 
-		mWeaponKeybinds[sf::Keyboard::Scancode::Num1] = WeaponAction::Rifle;
-		mWeaponKeybinds[sf::Keyboard::Scancode::Num2] = WeaponAction::Shotgun;
-		mWeaponKeybinds[sf::Keyboard::Scancode::Num3] = WeaponAction::Handgun;
-		mWeaponKeybinds[sf::Keyboard::Scancode::V] = WeaponAction::Knife;
-		mWeaponKeybinds[sf::Keyboard::Scancode::R] = WeaponAction::Reload;
+		mKeybinds[sf::Keyboard::Scancode::F] = Keybind::Melee;
+		mKeybinds[sf::Keyboard::Scancode::V] = Keybind::Knife;
+		mKeybinds[sf::Keyboard::Scancode::Num3] = Keybind::Handgun;
+		mKeybinds[sf::Keyboard::Scancode::Num2] = Keybind::Shotgun;
+		mKeybinds[sf::Keyboard::Scancode::Num1] = Keybind::Rifle;
+		mKeybinds[sf::Keyboard::Scancode::R] = Keybind::Reload;
 	}
 
-	void Player::HandleEvent(const sf::Event& event){
-		if (const auto* keyPressed = event.getIf<sf::Event::KeyPressed>()){
-			if (mMovementKeybinds[keyPressed->scancode]){
-			}
-			if (mAttackKeybinds[keyPressed->scancode]){
-			}
-		}
-	}
+	void Player::Update(){
+		auto& input = mContext.mInputManager;
 
-	bool Player::IsActionPressedOnce(sf::Keyboard::Scancode scancode){
-		const bool isDown = sf::Keyboard::isKeyPressed(scancode);
-		const bool wasDown = mPreviousKeyStates[scancode];
-		mPreviousKeyStates[scancode] = isDown;
-		return isDown && !wasDown;
-	}
+		mSoldier.SetAim(GetAim()); // radians
+		mSoldier.SetVelocity({0.f, 0.f});
+		const float aim = mSoldier.GetAim();
 
-	bool Player::IsMousePressedOnce(sf::Mouse::Button button){
-		const bool isDown = sf::Mouse::isButtonPressed(button);
-		const bool wasDown = mPreviousMouseStates[button];
-		mPreviousMouseStates[button] = isDown;
-		return isDown && !wasDown;
-	}
-
-	void Player::HandleInput(float radians){
-		bool wantsShoot = false;
-		bool shotThisFrame = false;
 		bool walking = false;
 		bool running = false;
 		bool strafeLeft = false;
 		bool strafeRight = false;
-		bool melee = false, reload = false;
-		const bool mouseHeld = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
-		const bool mousePressedOnce = IsMousePressedOnce(sf::Mouse::Button::Left);
-		for (const auto& [scancode, action] : mMovementKeybinds){
-			if (!sf::Keyboard::isKeyPressed(scancode)){
-				continue;
-			}
-			walking = true;
-			const float radians = mSoldier->GetAimAngle().asRadians();
-			running = sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::LShift);
-			switch (action){
-				case MoveUp:
-					mSoldier->Accelerate({ std::cos(radians), std::sin(radians) });
-					break;
-				case MoveDown:
-					mSoldier->Accelerate({ -std::cos(radians), -std::sin(radians) });
-					break;
-				case MoveLeft:
-					strafeLeft = true;
-					walking = false;
-					running = false;
-					mSoldier->Accelerate({ std::sin(radians), -std::cos(radians) });
-					break;
-				case MoveRight:
-					strafeRight = true;
-					walking = false;
-					running = false;
-					mSoldier->Accelerate({ -std::sin(radians), std::cos(radians) });
-					break;
-			}
-		}
-
-		for (const auto& [scancode, action] : mAttackKeybinds){
-			if (!sf::Keyboard::isKeyPressed(scancode)){
-				continue;
-			}
-			switch (action){
-				case Melee:
-					melee = true;
-					break;
-			}
-		}
-
-		for (const auto& [scancode, action] : mWeaponKeybinds){
-			const bool pressedOnce = IsActionPressedOnce(scancode);
-			switch (action){
-				case Knife:
-					if (pressedOnce){
-						mSoldier->RequestWeapon(Core::Soldier::WeaponState::Knife);
-					}
-					break;
-				case Handgun:
-					if (pressedOnce){
-						mSoldier->RequestWeapon(Core::Soldier::WeaponState::Handgun);
-					}
-					break;
-				case Rifle:
-					if (pressedOnce){
-						mSoldier->RequestWeapon(Core::Soldier::WeaponState::Rifle);
-					}
-					break;
-				case Shotgun:
-					if (pressedOnce){
-						mSoldier->RequestWeapon(Core::Soldier::WeaponState::Shotgun);
-					}
-					break;
-				case Reload:
-					if (pressedOnce){
-						mSoldier->IsReloading = true;
-						mSoldier->PlayReloadSound();
-						reload = true;
-					}
-					break;
-			}
-		}
-
-		if (mSoldier->mWeaponState == Core::Soldier::WeaponState::Rifle){
-			if (mouseHeld){
-				wantsShoot = true;
-			}
-		} else{
-			if (mousePressedOnce){
-				wantsShoot = true;
-			}
-		}
-
-		if (wantsShoot && !mSoldier->IsReloading){
-			shotThisFrame = mSoldier->TryShoot();
-		}
-
+		bool melee = false;
+		bool reload = false;
 		bool animateShoot = false;
 
-		if (mSoldier->mWeaponState == Core::Soldier::WeaponState::Rifle){
-			animateShoot = wantsShoot;
-		} else{
-			animateShoot = shotThisFrame;
+		// HELD: movement/sprint
+		for (const auto& [scancode, action] : mKeybinds){
+			if (!input.IsKeyHeld(scancode)){
+				continue;
+			}
+			switch (action){
+				case Keybind::MoveUp:
+					walking = true;
+					mSoldier.Accelerate({std::cos(aim), std::sin(aim)});
+					break;
+				case Keybind::MoveDown:
+					walking = true;
+					mSoldier.Accelerate({-std::cos(aim), -std::sin(aim)});
+					break;
+				case Keybind::MoveLeft:
+					strafeLeft = true;
+					mSoldier.Accelerate({std::sin(aim), -std::cos(aim)});
+					break;
+				case Keybind::MoveRight:
+					strafeRight = true;
+					mSoldier.Accelerate({-std::sin(aim), std::cos(aim)});
+					break;
+				case Keybind::Sprint:
+					running = true;
+					break;
+				default:
+					break;
+			}
 		}
 
-		mSoldier->AnimateFeet(walking, running, strafeLeft, strafeRight);
-		mSoldier->AnimateBody(melee, walking, reload, animateShoot);
+		if (strafeLeft || strafeRight){
+			walking = false;
+			running = false;
+		}
+
+		mSoldier.SetRunning(running);
+
+		// PRESSED: one-shot actions
+		for (const auto& [scancode, action] : mKeybinds){
+			if (!input.IsKeyPressed(scancode)){
+				continue;
+			}
+
+			switch (action){
+				case Keybind::Melee:
+					melee = true;
+					mSoldier.Melee();
+					break;
+				case Keybind::Knife:
+					mSoldier.RequestWeapon(Weapon::Type::Knife);
+					break;
+				case Keybind::Handgun:
+					mSoldier.RequestWeapon(Weapon::Type::Handgun);
+					break;
+				case Keybind::Shotgun:
+					mSoldier.RequestWeapon(Weapon::Type::Shotgun);
+					break;
+				case Keybind::Rifle:
+					mSoldier.RequestWeapon(Weapon::Type::Rifle);
+					break;
+				case Keybind::Reload:
+					reload = true;
+					mSoldier.ReloadWeapon();
+					break;
+				default:
+					break;
+			}
+		}
+
+		const bool wantsShoot = (mSoldier.GetWeapon() == Weapon::Type::Rifle)
+			? input.IsMouseHeld(sf::Mouse::Button::Left)
+			: input.IsMousePressed(sf::Mouse::Button::Left);
+
+		bool shotThisFrame = false;
+		if (wantsShoot){
+			shotThisFrame = mSoldier.FireWeapon();
+		}
+
+		mSoldier.AnimateFeet(walking, running, strafeLeft, strafeRight);
+		mSoldier.AnimateBody(melee, walking, reload, wantsShoot, shotThisFrame);
 	}
 
-	void Player::Update(sf::Time deltaTime){
-
+	const float Player::GetAim(){
+		const sf::Vector2i pixel = sf::Mouse::getPosition(mContext.mWindow);
+		const sf::Vector2f mouseWorld = mContext.mWindow.mapPixelToCoords(pixel, mContext.mView);
+		const sf::Vector2f pivot = mSoldier.GetCenter();
+		const sf::Vector2f delta = mouseWorld - pivot;
+		const float rad = std::atan2(delta.y, delta.x);
+		return rad;
 	}
 }

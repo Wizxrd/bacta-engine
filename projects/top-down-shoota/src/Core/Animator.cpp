@@ -14,9 +14,7 @@ namespace Core{
 		if (!mAnimation || mAnimation->Frames.empty() || mComplete){
 			return;
 		}
-
 		mElapsed += deltaTime.asSeconds();
-
 		if (mElapsed >= mAnimation->SecondsPerFrame){
 			mFrame++;
 			mElapsed -= mAnimation->SecondsPerFrame;

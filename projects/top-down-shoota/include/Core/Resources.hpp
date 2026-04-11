@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/ResourceHolder.hpp"
+#include "Core/ResourceManager.hpp"
 
 #include <SFML/Audio/Sound.hpp>
 
@@ -80,10 +80,10 @@ namespace Core::Music{
 	};
 }
 
-using TextureHolder = Core::ResourceHolder<sf::Texture, Core::Textures::Id>;
-using FontHolder = Core::ResourceHolder<sf::Font, Core::Fonts::Id>;
-using SoundBufferHolder = Core::ResourceHolder<sf::SoundBuffer, Core::SoundBuffers::Id>;
-using MusicHolder = Core::ResourceHolder<sf::Music, Core::Music::Id>;
+using TextureHolder = Core::ResourceManager<sf::Texture, Core::Textures::Id>;
+using FontHolder = Core::ResourceManager<sf::Font, Core::Fonts::Id>;
+using SoundBufferHolder = Core::ResourceManager<sf::SoundBuffer, Core::SoundBuffers::Id>;
+using MusicHolder = Core::ResourceManager<sf::Music, Core::Music::Id>;
 
 struct Resources{
 	TextureHolder Textures;
