@@ -4,7 +4,7 @@
 #include "Core/InputManager.hpp"
 #include "Core/SoundManager.hpp"
 
-#include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics/window.hpp>
 
 #include <functional>
 #include <vector>
@@ -12,14 +12,14 @@
 namespace Core{
 	class StateManager;
 	struct StateContext{
-		StateContext(sf::RenderWindow& window, sf::View& view, Resources& resources, InputManager& input, SoundManager& sound)
+		StateContext(sf::window& window, sf::View& view, Resources& resources, InputManager& input, SoundManager& sound)
 		: mWindow(window)
 		, mView(view)
 		, mResources(resources)
 		, mInputManager(input)
 		, mSoundManager(sound){
 		}
-		sf::RenderWindow& mWindow;
+		sf::window& mWindow;
 		sf::View mView;
 		Resources& mResources;
 		InputManager& mInputManager;

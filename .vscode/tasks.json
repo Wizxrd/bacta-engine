@@ -18,14 +18,7 @@
                 "-std=c++20",
                 "-IC:\\SFML-3.0.2\\include",
                 "-Iinclude",
-                "-Ic:\\imgui-1.91.9",
-                "-Ic:\\imgui-sfml-3.0",
                 "src/*.cpp",
-                "c:\\imgui-1.91.9\\imgui.cpp",
-                "c:\\imgui-1.91.9\\imgui_draw.cpp",
-                "c:\\imgui-1.91.9\\imgui_tables.cpp",
-                "c:\\imgui-1.91.9\\imgui_widgets.cpp",
-                "c:\\imgui-sfml-3.0\\imgui-SFML.cpp",
                 "-LC:\\SFML-3.0.2\\lib",
                 "-lsfml-graphics",
                 "-lsfml-audio",
@@ -45,7 +38,7 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "detail": "Build selected project with SFML + ImGui-SFML (auto-updated by taskbar for d:\\Github\\bacta-engine\\projects\\firework-simulator)"
+            "detail": "Build selected project with SFML (auto-updated by taskbar for d:\\Github\\bacta-engine\\projects\\firework-simulator)"
         }
     ]
 }

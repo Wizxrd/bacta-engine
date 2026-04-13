@@ -99,7 +99,7 @@ namespace UI{
 		return mText->getLocalBounds().size;
 	}
 
-	bool Button::IsMouseHovered(sf::RenderWindow& window) const {
+	bool Button::IsMouseHovered(sf::window& window) const {
 		sf::Vector2f mouse = static_cast<sf::Vector2f>(sf::Mouse::getPosition(window));
 		if (mText){
 			return mText->getGlobalBounds().contains(mouse);
@@ -107,11 +107,11 @@ namespace UI{
 		return mShape.getGlobalBounds().contains(mouse);
 	}
 
-	bool Button::IsMouseDown(sf::RenderWindow& window) const {
+	bool Button::IsMouseDown(sf::window& window) const {
 		return IsMouseHovered(window) && mIsMouseDown;
 	}
 
-	bool Button::IsMouseReleased(sf::RenderWindow& window) const {
+	bool Button::IsMouseReleased(sf::window& window) const {
 		return IsMouseHovered(window) && !mIsMouseDown && mWasMouseDown;
 	}
 

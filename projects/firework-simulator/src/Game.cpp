@@ -113,7 +113,7 @@ static void DrawAerialShellEditor(AerialShell& shell){
 
 static AerialShell example = Fireworks::Example();
 
-void Game::ProcessEvent(sf::RenderWindow& window, const sf::Event& event){
+void Game::ProcessEvent(sf::window& window, const sf::Event& event){
 	if (ImGui::GetIO().WantCaptureMouse){return;}
 	if (event.is<sf::Event::MouseButtonPressed>()){
 		bool launch = sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::Space);

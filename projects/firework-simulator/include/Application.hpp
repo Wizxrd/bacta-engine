@@ -2,7 +2,7 @@
 
 #include "Game.hpp"
 
-#include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics/window.hpp>
 
 #include <vector>
 
@@ -16,7 +16,7 @@ class Application{
 		void updateImGui(sf::Time deltaTime);
 		void render();
 	private:
-		sf::RenderWindow mWindow;
+		sf::window mWindow;
 		Game mGame;
 		float FPS = 120.f;
 		static const sf::Time TimePerFrame;

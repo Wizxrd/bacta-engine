@@ -4,7 +4,7 @@
 #include <Core/StateContext.hpp>
 
 #include <SFML/Graphics/RenderTarget.hpp>
-#include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics/window.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/Graphics/Text.hpp>
@@ -44,9 +44,9 @@ namespace UI{
 			sf::Vector2f GetPosition() const;
 			sf::Vector2f GetSize() const;
 			sf::Vector2f GetTextSize() const;
-			bool IsMouseHovered(sf::RenderWindow& window) const;
-			bool IsMouseDown(sf::RenderWindow& window) const;
-			bool IsMouseReleased(sf::RenderWindow& window) const;
+			bool IsMouseHovered(sf::window& window) const;
+			bool IsMouseDown(sf::window& window) const;
+			bool IsMouseReleased(sf::window& window) const;
 			void ExecuteAction();
 		private:
 			sf::RectangleShape mShape;

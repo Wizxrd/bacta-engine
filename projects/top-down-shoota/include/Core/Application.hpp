@@ -6,7 +6,7 @@
 #include "Core/InputManager.hpp"
 #include "Core/SoundManager.hpp"
 
-#include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics/window.hpp>
 #include <SFML/System/Time.hpp>
 
 #include <memory>
@@ -21,7 +21,7 @@ namespace Core{
 			void update(sf::Time deltaTime);
 			void render();
 		private:
-			sf::RenderWindow mWindow;
+			sf::window mWindow;
 			sf::View mView;
 			StateContext mContext;
 			Resources mResources;

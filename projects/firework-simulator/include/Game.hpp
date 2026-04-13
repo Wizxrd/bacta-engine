@@ -9,7 +9,7 @@
 
 class Game{
 	public:
-		void ProcessEvent(sf::RenderWindow& window, const sf::Event& event);
+		void ProcessEvent(sf::window& window, const sf::Event& event);
 		void UpdateImGui(sf::Time deltaTime);
 		void Update(sf::Time deltaTime);
 		void Render(sf::RenderTarget& target);
