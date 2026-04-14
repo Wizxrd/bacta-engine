@@ -5,8 +5,8 @@
             "name": "Debug (SFML + ImGui-SFML)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "d:/Github/bacta-engine/projects/firework-simulator/bin/main.exe",
-            "cwd": "d:/Github/bacta-engine/projects/firework-simulator",
+            "program": "d:/Github/bacta-engine/projects/milkywalk-simulator/bin/main.exe",
+            "cwd": "d:/Github/bacta-engine/projects/milkywalk-simulator",
             "environment": [
                 {
                     "name": "PATH",

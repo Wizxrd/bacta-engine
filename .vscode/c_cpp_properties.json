@@ -3,7 +3,7 @@
         {
             "name": "Win32",
             "includePath": [
-                "d:/Github/bacta-engine/projects/firework-simulator/include",
+                "d:/Github/bacta-engine/projects/milkywalk-simulator/include",
                 "C:/SFML-3.0.2/include"
             ],
             "defines": [
@@ -18,7 +18,7 @@
             "intelliSenseMode": "windows-gcc-x64",
             "browse": {
                 "path": [
-                    "d:/Github/bacta-engine/projects/firework-simulator/include",
+                    "d:/Github/bacta-engine/projects/milkywalk-simulator/include",
                     "C:/SFML-3.0.2/include"
                 ]
             }
