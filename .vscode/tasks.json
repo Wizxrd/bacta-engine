@@ -1,35 +1,38 @@
 {
     "version": "2.0.0",
-    "inputs": [
-        {
-            "id": "projectPath",
-            "type": "command",
-            "command": "taskbar.getProjectPathForTask"
-        }
-    ],
     "tasks": [
         {
-            "label": "Build current project (SFML)",
-            "type": "shell",
-            "command": "C:\\mingw64\\bin\\g++.exe",
+            "type": "cppbuild",
+            "label": "Build current project (ImGui + OpenGL)",
+            "command": "C:/mingw64/bin/g++.exe",
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
-                "-std=c++20",
-                "-IC:\\SFML-3.0.2\\include",
-                "-Iinclude",
-                "src/*.cpp",
-                "-LC:\\SFML-3.0.2\\lib",
-                "-lsfml-graphics",
-                "-lsfml-audio",
-                "-lsfml-window",
-                "-lsfml-system",
+                "-std=c++17",
+                "-Wno-register",
+                "-DGLEW_STATIC",
+                "-I${workspaceFolder}/projects/solar-system-simulator/include",
+                "-Ic:/glfw-3.4/include",
+                "-Ic:/glew-2.3.1/include",
+                "-Ic:/glm-0.9.3.2",
+                "-L${workspaceFolder}/projects/solar-system-simulator/lib",
+                "-Lc:/glfw-3.4/lib-mingw-w64",
+                "${workspaceFolder}/projects/solar-system-simulator/src/main.cpp",
+                "-x",
+                "c",
+                "c:/glew-2.3.1/src/glew.c",
+                "-lglfw3dll",
                 "-lopengl32",
+                "-lglu32",
+                "-lgdi32",
+                "-luser32",
+                "-lshell32",
+                "-mconsole",
                 "-o",
-                "bin/main.exe"
+                "${workspaceFolder}/projects/solar-system-simulator/bin/main.exe"
             ],
             "options": {
-                "cwd": "${input:projectPath}"
+                "cwd": "${workspaceFolder}/projects/solar-system-simulator"
             },
             "problemMatcher": [
                 "$gcc"
@@ -38,7 +41,7 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "detail": "Build selected project with SFML (auto-updated by taskbar for d:\\Github\\bacta-engine\\projects\\milkywalk-simulator)"
+            "detail": "compiler: C:/mingw64/bin/g++.exe"
         }
     ]
 }

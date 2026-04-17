@@ -5,15 +5,15 @@
             "name": "Debug (SFML + ImGui-SFML)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "d:/Github/bacta-engine/projects/milkywalk-simulator/bin/main.exe",
-            "cwd": "d:/Github/bacta-engine/projects/milkywalk-simulator",
+            "program": "d:/Github/bacta-engine/projects/solar-system-simulator/bin/main.exe",
+            "cwd": "d:/Github/bacta-engine/projects/solar-system-simulator",
             "environment": [
                 {
                     "name": "PATH",
                     "value": "D:/libs/SFML/bin;D:/libs/imgui-sfml/bin;${env:PATH}"
                 }
             ],
-            "preLaunchTask": "Build current project (SFML)"
+            "preLaunchTask": "Build current project (ImGui + OpenGL)"
         }
     ]
 }

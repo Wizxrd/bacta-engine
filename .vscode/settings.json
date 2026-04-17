@@ -1,8 +1,16 @@
 {
-	"taskbar.imgui.enabled": true,
-	"taskbar.imgui.include": "c:\\imgui-1.91.9",
-	"taskbar.imgui.sourceDir": "c:\\imgui-1.91.9",
-	"taskbar.imguiSfml.include": "c:\\imgui-sfml-3.0",
-	"taskbar.imgui.sfmlCpp": "c:\\imgui-sfml-3.0\\imgui-SFML.cpp",
-	"taskbar.imgui.linkPrebuilt": false
+    "taskbar.imgui.enabled": true,
+    "taskbar.imgui.include": "c:\\imgui-1.91.9",
+    "taskbar.imgui.sourceDir": "c:\\imgui-1.91.9",
+    "taskbar.imguiSfml.include": "c:\\imgui-sfml-3.0",
+    "taskbar.imgui.sfmlCpp": "c:\\imgui-sfml-3.0\\imgui-SFML.cpp",
+    "taskbar.imgui.linkPrebuilt": false,
+    "taskbar.sdkIncludePaths": [
+        "c:/glfw-3.4/include",
+        "c:/glew-2.3.1/include",
+        "c:/glm-0.9.3.2/glm"
+    ],
+    "taskbar.sdkLibPaths": ["c:/glfw-3.4/lib-mingw-w64"],
+    "taskbar.glewLibraryFile": "",
+    "taskbar.glewSourceFile": "c:/glew-2.3.1/src/glew.c"
 }

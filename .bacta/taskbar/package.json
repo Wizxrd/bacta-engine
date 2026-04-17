@@ -1,8 +1,8 @@
 {
     "name": "taskbar",
     "displayName": "taskbar",
-    "description": "Custom taskbar for C++ projects",
-    "version": "1.1.12",
+    "description": "Custom taskbar for C++ ImGui + OpenGL (GLFW) projects",
+    "version": "2.0.8",
     "publisher": "Wizard",
     "engines": {
         "vscode": "^1.80.0"
@@ -24,123 +24,135 @@
                     "default": "C:\\mingw32\\bin\\g++.exe",
                     "description": "Default compiler path for MinGW 32-bit"
                 },
-                "taskbar.sfml.enabled": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Include SFML in build (disable for plain C++ projects)"
-                },
-                "taskbar.sfml.include": {
+                "taskbar.gdbPath.mingw64": {
                     "type": "string",
-                    "default": "C:\\SFML-3.0.2\\include",
-                    "description": "SFML include path (used in build when SFML is enabled)"
+                    "default": "C:\\mingw64\\bin\\gdb.exe",
+                    "description": "GDB used by Build & Debug when toolchain is MinGW 64-bit"
                 },
-                "taskbar.sfml.lib": {
+                "taskbar.opengl.include": {
                     "type": "string",
-                    "default": "C:\\SFML-3.0.2\\lib",
-                    "description": "SFML lib path (used in build when SFML is enabled)"
+                    "default": "",
+                    "description": "Folder added with -I (GLFW, GLAD, etc. — often contains GLFW/ and glad/)"
+                },
+                "taskbar.opengl.lib": {
+                    "type": "string",
+                    "default": "",
+                    "description": "MinGW-w64 library folder (-L), e.g. containing libglfw3.a / libglfw3dll.a and glfw3.dll"
+                },
+                "taskbar.opengl.glfwLinkMode": {
+                    "type": "string",
+                    "enum": ["dynamic", "static"],
+                    "default": "dynamic",
+                    "description": "Link GLFW: dynamic uses -lglfw3dll + glfw3.dll; static uses -lglfw3 (no GLFW DLL)"
                 },
                 "taskbar.imgui.enabled": {
                     "type": "boolean",
-                    "default": false,
-                    "description": "Enable ImGui-SFML support in generated project build tasks"
+                    "default": true,
+                    "description": "Compile Dear ImGui + GLFW + OpenGL3 backends from sourceDir"
                 },
                 "taskbar.imgui.include": {
                     "type": "string",
-                    "default": "C:\\libs\\imgui",
-                    "description": "Dear ImGui include path"
+                    "default": "",
+                    "description": "Dear ImGui root (same as sourceDir if unset)"
                 },
                 "taskbar.imgui.sourceDir": {
                     "type": "string",
-                    "default": "C:\\libs\\imgui",
-                    "description": "Dear ImGui source directory containing imgui.cpp and friends"
+                    "default": "",
+                    "description": "Dear ImGui folder containing imgui.cpp and backends/"
                 },
-                "taskbar.imguiSfml.include": {
-                    "type": "string",
-                    "default": "C:\\libs\\imgui-sfml",
-                    "description": "ImGui-SFML include path"
+                "taskbar.sdkIncludePaths": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": [
+                        "c:/glfw-3.4/include",
+                        "c:/glew-2.3.1/include",
+                        "c:/glm-0.9.3.2"
+                    ],
+                    "description": "Extra -I paths merged into IntelliSense and build. Use the folder that *contains* the glm/, GL/, GLFW/ subfolders."
                 },
-                "taskbar.imgui.sfmlCpp": {
-                    "type": "string",
-                    "default": "C:\\libs\\imgui-sfml\\imgui-SFML.cpp",
-                    "description": "Path to imgui-SFML.cpp when compiling sources directly"
+                "taskbar.sdkLibPaths": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": ["c:/glew-2.3.1/lib"],
+                    "description": "Extra -L paths for third-party .a/.dll (e.g. GLEW). GLFW project lib is still added separately."
                 },
-                "taskbar.imgui.lib": {
+                "taskbar.glewLibraryFile": {
                     "type": "string",
                     "default": "",
-                    "description": "Library folder for prebuilt imgui and imgui-sfml libraries"
+                    "description": "If set, link this import lib (.a) instead of compiling GLEW from source."
                 },
-                "taskbar.imgui.linkPrebuilt": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Use prebuilt imgui/imgui-sfml libs instead of compiling sources directly"
+                "taskbar.glewSourceFile": {
+                    "type": "string",
+                    "default": "c:/glew-2.3.1/src/glew.c",
+                    "description": "When glewLibraryFile is empty and this file exists, build uses -DGLEW_STATIC and compiles this file (no -lglew32)."
                 }
             }
         },
         "commands": [
-        {
-            "command": "taskbar.setWorkspaceRoot",
-            "title": "Set Workspace Root"
-        },
-        {
-            "command": "taskbar.setProjectPath",
-            "title": "Set Project Folder"
-        },
-        {
-            "command": "taskbar.newProject",
-            "title": "New SFML Project"
-        },
-        {
-            "command": "taskbar.getProjectPathForTask",
-            "title": "Get Project Path (for tasks)"
-        },
-        {
-            "command": "taskbar.setToolchain",
-            "title": "Select Toolchain"
-        },
-        {
-            "command": "taskbar.setCompilerPath",
-            "title": "Select Compiler Executable"
-        },
-        {
-            "command": "taskbar.setSfmlPath",
-            "title": "Set SFML Path"
-        },
-        {
-            "command": "taskbar.setImGuiMode",
-            "title": "Set ImGui-SFML Mode"
-        },
-        {
-            "command": "taskbar.setSfmlDllModules",
-            "title": "Select SFML DLLs to Copy (from SFML/bin)"
-        },
-        {
-            "command": "taskbar.build",
-            "title": "Build & Compile Project"
-        },
-        {
-            "command": "taskbar.run",
-            "title": "Run Project"
-        },
-        {
-            "command": "taskbar.buildAndRun",
-            "title": "Build, Compile & Run"
-        },
-        {
-            "command": "taskbar.buildAndDebug",
-            "title": "Build, Compile & Debug"
-        },
-        {
-            "command": "taskbar.focusProblems",
-            "title": "Focus Problems View"
-        },
-        {
-            "command": "taskbar.cleanBuild",
-            "title": "Clean Build Output"
-        },
-        {
-            "command": "taskbar.openDocs",
-            "title": "Open C++ / SFML Documentation"
-        }
+            {
+                "command": "taskbar.setWorkspaceRoot",
+                "title": "Set Workspace Root"
+            },
+            {
+                "command": "taskbar.setProjectPath",
+                "title": "Set Project Folder"
+            },
+            {
+                "command": "taskbar.newProject",
+                "title": "New ImGui + OpenGL Project"
+            },
+            {
+                "command": "taskbar.getProjectPathForTask",
+                "title": "Get Project Path (for tasks)"
+            },
+            {
+                "command": "taskbar.setToolchain",
+                "title": "Select Toolchain"
+            },
+            {
+                "command": "taskbar.setCompilerPath",
+                "title": "Select Compiler Executable"
+            },
+            {
+                "command": "taskbar.setOpenglPaths",
+                "title": "Set OpenGL Include and MinGW Lib Folders"
+            },
+            {
+                "command": "taskbar.setGlfwLinkMode",
+                "title": "Set GLFW Link Mode (dynamic/static)"
+            },
+            {
+                "command": "taskbar.setImGuiMode",
+                "title": "Configure Dear ImGui (GLFW + OpenGL3)"
+            },
+            {
+                "command": "taskbar.build",
+                "title": "Build & Compile Project"
+            },
+            {
+                "command": "taskbar.run",
+                "title": "Run Project"
+            },
+            {
+                "command": "taskbar.buildAndRun",
+                "title": "Build, Compile & Run"
+            },
+            {
+                "command": "taskbar.buildAndDebug",
+                "title": "Build, Compile & Debug"
+            },
+            {
+                "command": "taskbar.focusProblems",
+                "title": "Focus Problems View"
+            },
+            {
+                "command": "taskbar.cleanBuild",
+                "title": "Clean Build Output"
+            },
+            {
+                "command": "taskbar.openDocs",
+                "title": "Open C++ / OpenGL / ImGui Documentation"
+            }
         ]
     }
 }

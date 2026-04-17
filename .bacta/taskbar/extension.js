@@ -3,14 +3,17 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 
-// --- State keys ---
 const PROJECT_PATH_KEY = "taskbar.projectPath";
 const WORKSPACE_ROOT_KEY = "taskbar.workspaceRoot";
 const TOOLCHAIN_KEY = "taskbar.toolchain";
 const COMPILER_PATH_KEY = "taskbar.compilerPath";
-const SFML_ENABLED_KEY = "taskbar.sfmlEnabled";
-const SFML_DLL_MODULES_KEY = "taskbar.sfmlDllModules";
 const IMGUI_ENABLED_KEY = "taskbar.imguiEnabled";
+/** Persisted via workspaceState so path picks work even if Settings schema is stale. */
+const OPENGL_INCLUDE_KEY = "taskbar.openglIncludePath";
+const OPENGL_LIB_KEY = "taskbar.openglLibPath";
+const GLFW_LINK_MODE_KEY = "taskbar.glfwLinkMode";
+const IMGUI_INCLUDE_KEY = "taskbar.imguiIncludePath";
+const IMGUI_SOURCE_DIR_KEY = "taskbar.imguiSourceDir";
 
 const TOOLCHAIN_PRESETS = {
     mingw64: { label: "MinGW 64-bit", key: "mingw64" },
@@ -21,7 +24,15 @@ const TOOLCHAIN_PRESETS = {
 const DEFAULT_WORKSPACE_ROOT = "";
 const DEFAULT_PROJECT_PATH = "";
 const NEW_PROJECT_FOLDERS = ["assets", "bin", "include", "lib", "src"];
-const SFML_MODULES = ["system", "window", "graphics", "audio", "network"];
+
+/** MinGW runtime DLLs often needed next to the exe (adjust paths if your install differs). */
+const NEW_PROJECT_MINGW_DLL_SOURCES = [
+    "c:\\mingw64\\libexec\\gcc\\x86_64-w64-mingw32\\14.2.0\\libgcc_s_seh-1.dll",
+    "c:\\mingw64\\libexec\\gcc\\x86_64-w64-mingw32\\14.2.0\\libwinpthread-1.dll",
+    "c:\\mingw64\\bin\\libstdc++-6.dll"
+];
+
+const BUILD_TASK_LABEL = "Build current project (ImGui + OpenGL)";
 
 var BUILD_WIDGET = vscode.window.createStatusBarItem();
 var RUN_WIDGET = vscode.window.createStatusBarItem();
@@ -31,23 +42,15 @@ var PROJECT_WIDGET = vscode.window.createStatusBarItem();
 var WORKSPACE_WIDGET = vscode.window.createStatusBarItem();
 var TOOLCHAIN_WIDGET = vscode.window.createStatusBarItem();
 var COMPILER_WIDGET = vscode.window.createStatusBarItem();
-var SFML_WIDGET = vscode.window.createStatusBarItem();
-var SFML_DLL_WIDGET = vscode.window.createStatusBarItem();
+var OPENGL_INC_WIDGET = vscode.window.createStatusBarItem();
+var OPENGL_LIB_WIDGET = vscode.window.createStatusBarItem();
+var GLFW_LINK_WIDGET = vscode.window.createStatusBarItem();
 var IMGUI_WIDGET = vscode.window.createStatusBarItem();
 var PROBLEMS_WIDGET = vscode.window.createStatusBarItem();
 var CLEAN_WIDGET = vscode.window.createStatusBarItem();
 var NEW_PROJECT_WIDGET = vscode.window.createStatusBarItem();
 var DOCS_WIDGET = vscode.window.createStatusBarItem();
 var buildAndDebugListener = null;
-
-const NEW_PROJECT_DLL_SOURCES = [
-    "c:\\mingw64\\libexec\\gcc\\x86_64-w64-mingw32\\14.2.0\\libgcc_s_seh-1.dll",
-    "c:\\mingw64\\libexec\\gcc\\x86_64-w64-mingw32\\14.2.0\\libwinpthread-1.dll",
-    "c:\\mingw64\\bin\\libstdc++-6.dll",
-    "c:\\SFML-3.0.2\\bin\\sfml-graphics-3.dll",
-    "c:\\SFML-3.0.2\\bin\\sfml-system-3.dll",
-    "c:\\SFML-3.0.2\\bin\\sfml-window-3.dll"
-];
 
 function CreateWidget(widget, text, tooltip, command, context, color = "white") {
     widget.command = command;
@@ -151,6 +154,65 @@ function updateProjectWidget(context) {
         : "No project folder selected. Click to choose one.";
 }
 
+function getOpenglConfig(context) {
+    const config = vscode.workspace.getConfiguration("taskbar");
+    const incWs = context.workspaceState.get(OPENGL_INCLUDE_KEY);
+    const libWs = context.workspaceState.get(OPENGL_LIB_KEY);
+    const modeWs = context.workspaceState.get(GLFW_LINK_MODE_KEY);
+    return {
+        include: incWs !== undefined ? incWs : config.get("opengl.include", ""),
+        lib: libWs !== undefined ? libWs : config.get("opengl.lib", ""),
+        glfwLinkMode: modeWs !== undefined ? modeWs : config.get("opengl.glfwLinkMode", "dynamic")
+    };
+}
+
+function getSdkIncludePaths(context) {
+    const config = vscode.workspace.getConfiguration("taskbar");
+    const arr = config.get("sdkIncludePaths");
+    if (!Array.isArray(arr)) return [];
+    return arr.filter((p) => p && String(p).trim()).map((p) => normalizeSlashes(String(p).trim()));
+}
+
+function getSdkLibPaths(context) {
+    const config = vscode.workspace.getConfiguration("taskbar");
+    const arr = config.get("sdkLibPaths");
+    if (!Array.isArray(arr)) return [];
+    return arr.filter((p) => p && String(p).trim()).map((p) => normalizeSlashes(String(p).trim()));
+}
+
+/**
+ * MinGW rarely has libglew32 in the official GLEW zip (MSVC-only). Prefer compiling glew.c
+ * from the GLEW source tree with -DGLEW_STATIC when glewSourceFile exists.
+ */
+function resolveGlewBuild(context, projectRoot) {
+    if (mainCppUsesGlad(projectRoot)) return { mode: "none" };
+    if (!mainCppUsesGlew(projectRoot)) return { mode: "none" };
+    const config = vscode.workspace.getConfiguration("taskbar");
+    const libFile = (config.get("glewLibraryFile") || "").trim();
+    if (libFile && fs.existsSync(libFile)) {
+        return { mode: "link", libPath: libFile };
+    }
+    const srcDefault = "c:/glew-2.3.1/src/glew.c";
+    const src = (config.get("glewSourceFile") || "").trim() || srcDefault;
+    if (fs.existsSync(src)) {
+        return { mode: "static", src };
+    }
+    return { mode: "link", libPath: null };
+}
+
+function getImGuiConfig(context) {
+    const config = vscode.workspace.getConfiguration("taskbar");
+    const enabledStored = context.workspaceState.get(IMGUI_ENABLED_KEY);
+    const enabled = enabledStored !== undefined ? enabledStored : config.get("imgui.enabled", true);
+    const incWs = context.workspaceState.get(IMGUI_INCLUDE_KEY);
+    const srcWs = context.workspaceState.get(IMGUI_SOURCE_DIR_KEY);
+    return {
+        enabled,
+        include: incWs !== undefined ? incWs : config.get("imgui.include", ""),
+        sourceDir: srcWs !== undefined ? srcWs : config.get("imgui.sourceDir", "")
+    };
+}
+
 function updateCppPropertiesIncludePath(context) {
     const workspaceFolder = getOpenWorkspaceFolder();
     if (!workspaceFolder) return;
@@ -160,24 +222,24 @@ function updateCppPropertiesIncludePath(context) {
     const propsPath = path.join(workspaceFolder.uri.fsPath, ".vscode", "c_cpp_properties.json");
     if (!fs.existsSync(propsPath)) return;
 
-    const sfml = getSfmlPaths(context);
+    const gl = getOpenglConfig(context);
     const imgui = getImGuiConfig(context);
-    const sfmlInclude = (sfml.enabled && sfml.include) ? sfml.include : "C:/SFML-3.0.2/include";
     const projectInclude = projectFullPath
         ? normalizeSlashes(path.join(projectFullPath, "include"))
         : normalizeSlashes(path.join(projectPath || "", "include"));
+
+    const includePath = [projectInclude];
+    if (gl.include) includePath.push(normalizeSlashes(gl.include));
+    for (const p of getSdkIncludePaths(context)) includePath.push(p);
+    if (imgui.enabled) {
+        const imRoot = imgui.include || imgui.sourceDir;
+        if (imRoot) includePath.push(normalizeSlashes(imRoot));
+    }
 
     try {
         const raw = fs.readFileSync(propsPath, "utf8");
         const props = JSON.parse(raw);
         if (!props.configurations || !Array.isArray(props.configurations)) return;
-
-        const includePath = [projectInclude];
-        if (sfml.enabled) includePath.push(normalizeSlashes(sfmlInclude));
-        if (imgui.enabled) {
-            if (imgui.include) includePath.push(normalizeSlashes(imgui.include));
-            if (imgui.sfmlInclude) includePath.push(normalizeSlashes(imgui.sfmlInclude));
-        }
 
         for (const config of props.configurations) {
             config.includePath = includePath;
@@ -191,32 +253,109 @@ function updateCppPropertiesIncludePath(context) {
     }
 }
 
-function collectCppGlobDirs(sourceRoot) {
-    const dirs = new Set();
+/**
+ * When the selected project folder is inside the workspace, use ${workspaceFolder}/...
+ * so tasks.json matches the C/C++ extension style. Otherwise use absolute paths.
+ */
+function getProjectPathVarsForTasks(context) {
+    const workspaceFolder = getOpenWorkspaceFolder();
+    if (!workspaceFolder) return null;
+    const workspaceRoot = workspaceFolder.uri.fsPath;
+    const projectRoot = getProjectFullPath(context) || workspaceRoot;
+    const rel = path.relative(workspaceRoot, projectRoot);
+    const insideWorkspace = !rel.startsWith("..") && !path.isAbsolute(rel);
 
-    function walk(currentDir) {
-        if (!fs.existsSync(currentDir)) return;
-
-        const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-        let hasCpp = false;
-
-        for (const entry of entries) {
-            const fullPath = path.join(currentDir, entry.name);
-
-            if (entry.isDirectory()) {
-                walk(fullPath);
-            } else if (entry.isFile() && fullPath.toLowerCase().endsWith(".cpp")) {
-                hasCpp = true;
-            }
-        }
-
-        if (hasCpp) {
-            dirs.add(currentDir);
-        }
+    if (!insideWorkspace) {
+        const root = projectRoot.replace(/\\/g, "/");
+        return {
+            cwd: root,
+            p: (subPath) => path.join(projectRoot, subPath).replace(/\\/g, "/")
+        };
     }
 
-    walk(sourceRoot);
-    return [...dirs].sort((a, b) => a.localeCompare(b));
+    const base =
+        !rel || rel === "."
+            ? "${workspaceFolder}"
+            : "${workspaceFolder}/" + rel.replace(/\\/g, "/");
+    return {
+        cwd: base,
+        p: (subPath) => `${base}/${subPath.replace(/\\/g, "/")}`
+    };
+}
+
+function isCppSourceFile(name) {
+    const lower = name.toLowerCase();
+    return (
+        lower.endsWith(".cpp") ||
+        lower.endsWith(".cc") ||
+        lower.endsWith(".cxx") ||
+        lower.endsWith(".pp")
+    );
+}
+
+/** Ordered source list: main.cpp (or main.*) first, other C++, then glad.c, then other .c */
+function collectExplicitSrcFiles(projectRoot) {
+    const srcDir = path.join(projectRoot, "src");
+    const out = { cpp: [], c: [] };
+    if (!fs.existsSync(srcDir)) return out;
+
+    for (const name of fs.readdirSync(srcDir)) {
+        const full = path.join(srcDir, name);
+        if (!fs.statSync(full).isFile()) continue;
+        const lower = name.toLowerCase();
+        if (isCppSourceFile(name)) out.cpp.push(name);
+        else if (lower.endsWith(".c")) out.c.push(name);
+    }
+
+    function cppSortKey(f) {
+        const l = f.toLowerCase();
+        if (l === "main.cpp") return 0;
+        if (l.startsWith("main.")) return 1;
+        if (/^main[^/\\]*\.(cpp|cc|cxx|pp)$/i.test(f)) return 1;
+        return 2;
+    }
+
+    out.cpp.sort((a, b) => {
+        const d = cppSortKey(a) - cppSortKey(b);
+        return d !== 0 ? d : a.localeCompare(b);
+    });
+    out.c.sort((a, b) => {
+        if (a.toLowerCase() === "glad.c") return -1;
+        if (b.toLowerCase() === "glad.c") return 1;
+        return a.localeCompare(b);
+    });
+    return out;
+}
+
+function mainCppUsesGlad(projectRoot) {
+    const names = ["main.cpp", "main.cc", "main.cxx", "main.pp", "mainc.pp"];
+    for (const name of names) {
+        const full = path.join(projectRoot, "src", name);
+        if (!fs.existsSync(full)) continue;
+        try {
+            const t = fs.readFileSync(full, "utf8");
+            if (/#include\s*[<"]glad\/glad\.h[>"]/i.test(t)) return true;
+        } catch {
+            continue;
+        }
+    }
+    return false;
+}
+
+/** GLAD and GLEW both load GL entry points — do not compile glad.c with GLEW. */
+function mainCppUsesGlew(projectRoot) {
+    const names = ["main.cpp", "main.cc", "main.cxx", "main.pp", "mainc.pp"];
+    for (const name of names) {
+        const full = path.join(projectRoot, "src", name);
+        if (!fs.existsSync(full)) continue;
+        try {
+            const t = fs.readFileSync(full, "utf8");
+            if (/#include\s*[<"]GL\/glew\.h[>"]/i.test(t)) return true;
+        } catch {
+            continue;
+        }
+    }
+    return false;
 }
 
 function updateTasksJson(context) {
@@ -224,88 +363,143 @@ function updateTasksJson(context) {
     if (!workspaceFolder) return;
 
     const tasksPath = path.join(workspaceFolder.uri.fsPath, ".vscode", "tasks.json");
-    const projectPath = getProjectPath(context);
     const projectFullPath = getProjectFullPath(context);
-    const compilerPath = getCompilerPath(context) || "C:\\mingw64\\bin\\g++.exe";
-    const sfml = getSfmlPaths(context);
+    const projectRoot = projectFullPath || workspaceFolder.uri.fsPath;
+    const compilerPath = (getCompilerPath(context) || "C:\\mingw64\\bin\\g++.exe").replace(/\\/g, "/");
+    const gl = getOpenglConfig(context);
     const imgui = getImGuiConfig(context);
-    const sfmlInclude = (sfml.include || "C:\\SFML-3.0.2\\include").replace(/\//g, "\\");
-    const sfmlLib = (sfml.lib || "C:\\SFML-3.0.2\\lib").replace(/\//g, "\\");
+    const pathVars = getProjectPathVarsForTasks(context);
+    if (!pathVars) return;
 
-    const args = ["-fdiagnostics-color=always", "-g", "-std=c++20"];
+    const glew = resolveGlewBuild(context, projectRoot);
 
-    if (sfml.enabled) args.push(`-I${sfmlInclude}`);
-    args.push("-Iinclude");
+    const localInclude = path.join(projectRoot, "include");
+    const localLib = path.join(projectRoot, "lib");
+    const glInclude = (gl.include || "").trim();
+    const glLib = (gl.lib || "").trim();
+
+    const args = ["-fdiagnostics-color=always", "-g", "-std=c++17", "-Wno-register"];
+    if (glew.mode === "static") args.push("-DGLEW_STATIC");
+
+    args.push(`-I${pathVars.p("include")}`);
+    if (glInclude && path.normalize(glInclude) !== path.normalize(localInclude)) {
+        args.push(`-I${glInclude.replace(/\\/g, "/")}`);
+    }
 
     if (imgui.enabled) {
-        if (imgui.include) args.push(`-I${imgui.include}`);
-        if (imgui.sfmlInclude) args.push(`-I${imgui.sfmlInclude}`);
+        const imRoot = (imgui.include || imgui.sourceDir || "").trim();
+        if (imRoot) args.push(`-I${imRoot.replace(/\\/g, "/")}`);
     }
 
-    const projectRoot = projectFullPath || workspaceFolder.uri.fsPath;
-    const sourceRoot = path.join(projectRoot, "src");
-    const cppDirs = collectCppGlobDirs(sourceRoot);
-
-    for (const dir of cppDirs) {
-        const relDir = path.relative(projectRoot, dir).replace(/\\/g, "/");
-        args.push(`${relDir}/*.cpp`);
+    for (const p of getSdkIncludePaths(context)) {
+        args.push(`-I${p.replace(/\\/g, "/")}`);
     }
 
-    if (imgui.enabled && !imgui.linkPrebuilt) {
-        if (imgui.sourceDir) {
-            args.push(path.join(imgui.sourceDir, "imgui.cpp"));
-            args.push(path.join(imgui.sourceDir, "imgui_draw.cpp"));
-            args.push(path.join(imgui.sourceDir, "imgui_tables.cpp"));
-            args.push(path.join(imgui.sourceDir, "imgui_widgets.cpp"));
+    args.push(`-L${pathVars.p("lib")}`);
+    if (glLib && path.normalize(glLib) !== path.normalize(localLib)) {
+        args.push(`-L${glLib.replace(/\\/g, "/")}`);
+    }
+
+    for (const lp of getSdkLibPaths(context)) {
+        args.push(`-L${lp.replace(/\\/g, "/")}`);
+    }
+
+    const { cpp, c } = collectExplicitSrcFiles(projectRoot);
+    const srcList = [];
+    for (const f of cpp) srcList.push(pathVars.p(path.join("src", f).replace(/\\/g, "/")));
+    for (const f of c) srcList.push(pathVars.p(path.join("src", f).replace(/\\/g, "/")));
+
+    if (srcList.length === 0) {
+        srcList.push(pathVars.p("src/main.cpp"));
+    }
+
+    /**
+     * If tasks.json was generated when only glad.c existed, srcList is non-empty and the
+     * fallback above is skipped — link then has no main(). Always pull in entry from disk
+     * when present but missing from the list.
+     */
+    const mainCandidates = ["main.cpp", "main.cc", "main.cxx", "main.pp", "mainc.pp"];
+    for (const name of mainCandidates) {
+        const full = path.join(projectRoot, "src", name);
+        if (!fs.existsSync(full)) continue;
+        const arg = pathVars.p(`src/${name}`);
+        if (!srcList.includes(arg)) srcList.unshift(arg);
+        break;
+    }
+
+    if (mainCppUsesGlew(projectRoot) && !mainCppUsesGlad(projectRoot)) {
+        const gladArg = pathVars.p("src/glad.c");
+        srcList = srcList.filter((a) => a !== gladArg);
+    } else {
+        const gladFull = path.join(projectRoot, "src", "glad.c");
+        if (fs.existsSync(gladFull)) {
+            const gladArg = pathVars.p("src/glad.c");
+            if (!srcList.includes(gladArg)) srcList.push(gladArg);
         }
-        if (imgui.sfmlCpp) args.push(imgui.sfmlCpp);
     }
 
-    if (sfml.enabled) {
-        args.push(`-L${sfmlLib}`);
-        args.push("-lsfml-graphics", "-lsfml-audio", "-lsfml-window", "-lsfml-system", "-lopengl32");
+    for (const a of srcList) args.push(a);
+
+    if (glew.mode === "static") {
+        args.push("-x", "c", glew.src.replace(/\\/g, "/"));
     }
 
-    if (imgui.enabled && imgui.linkPrebuilt) {
-        if (imgui.lib) args.push(`-L${imgui.lib}`);
-        args.push("-limgui-sfml", "-limgui");
+    if (imgui.enabled && imgui.sourceDir) {
+        const sd = imgui.sourceDir.replace(/\\/g, "/");
+        args.push(`${sd}/imgui.cpp`);
+        args.push(`${sd}/imgui_draw.cpp`);
+        args.push(`${sd}/imgui_tables.cpp`);
+        args.push(`${sd}/imgui_widgets.cpp`);
+        args.push(`${sd}/backends/imgui_impl_glfw.cpp`);
+        args.push(`${sd}/backends/imgui_impl_opengl3.cpp`);
     }
 
-    args.push("-o", "bin/main.exe");
+    if (gl.glfwLinkMode === "static") {
+        args.push("-lglfw3");
+    } else {
+        args.push("-lglfw3dll");
+    }
 
-    const buildDetail = imgui.enabled
-        ? "Build selected project with SFML + ImGui-SFML"
-        : "Build selected project with SFML";
+    if (mainCppUsesGlew(projectRoot)) {
+        if (glew.mode === "static") {
+            /* glew.c already added with -x c */
+        } else if (glew.libPath) {
+            args.push(glew.libPath.replace(/\\/g, "/"));
+        } else {
+            args.push("-lglew32");
+        }
+    }
+
+    args.push("-lopengl32", "-lgdi32", "-luser32", "-lshell32");
+    /** Console subsystem + entry via main() (avoids MinGW linking as GUI / WinMain). */
+    args.push("-mconsole");
+    args.push("-o", pathVars.p("bin/main.exe"));
+
+    const detail = `compiler: ${compilerPath}`;
 
     const payload = {
         version: "2.0.0",
-        inputs: [
-            {
-                id: "projectPath",
-                type: "command",
-                command: "taskbar.getProjectPathForTask"
-            }
-        ],
         tasks: [
             {
-                label: "Build current project (SFML)",
-                type: "shell",
+                type: "cppbuild",
+                label: BUILD_TASK_LABEL,
                 command: compilerPath,
                 args,
                 options: {
-                    cwd: projectPath ? "${input:projectPath}" : workspaceFolder.uri.fsPath
+                    cwd: pathVars.cwd
                 },
                 problemMatcher: ["$gcc"],
                 group: { kind: "build", isDefault: true },
-                detail: `${buildDetail} (auto-updated by taskbar for ${projectFullPath || projectPath || "no project"})`
+                detail
             }
         ]
     };
 
     try {
         ensureDir(path.dirname(tasksPath));
+        ensureDir(path.join(projectRoot, "bin"));
         fs.writeFileSync(tasksPath, JSON.stringify(payload, null, 4), "utf8");
-        console.log(`taskbar: tasks.json synced with ${cppFiles.length} source file(s) from ${sourceRoot}`);
+        console.log(`taskbar: tasks.json synced (cppbuild, ${srcList.length} source file(s)) → ${projectRoot}`);
     } catch (err) {
         console.error("taskbar: could not update tasks.json", err);
     }
@@ -333,7 +527,7 @@ function updateLaunchJson(context) {
 
         config.program = program;
         config.cwd = cwd;
-        config.preLaunchTask = "Build current project (SFML)";
+        config.preLaunchTask = BUILD_TASK_LABEL;
         if (!config.name) config.name = "Debug";
 
         fs.writeFileSync(launchPath, JSON.stringify(launch, null, 4), "utf8");
@@ -362,30 +556,15 @@ function getCompilerPath(context) {
     return config.get("compilerPath.mingw64");
 }
 
-function getSfmlPaths(context) {
+function getGdbPath(context) {
+    const toolchain = getToolchain(context);
     const config = vscode.workspace.getConfiguration("taskbar");
-    const enabledStored = context.workspaceState.get(SFML_ENABLED_KEY);
-    const enabled = enabledStored !== undefined ? enabledStored : config.get("sfml.enabled", true);
-    return {
-        enabled,
-        include: config.get("sfml.include"),
-        lib: config.get("sfml.lib")
-    };
-}
-
-function getImGuiConfig(context) {
-    const config = vscode.workspace.getConfiguration("taskbar");
-    const enabledStored = context.workspaceState.get(IMGUI_ENABLED_KEY);
-    const enabled = enabledStored !== undefined ? enabledStored : config.get("imgui.enabled", false);
-    return {
-        enabled,
-        include: config.get("imgui.include"),
-        sfmlInclude: config.get("imguiSfml.include"),
-        sourceDir: config.get("imgui.sourceDir"),
-        sfmlCpp: config.get("imgui.sfmlCpp"),
-        lib: config.get("imgui.lib"),
-        linkPrebuilt: config.get("imgui.linkPrebuilt", false)
-    };
+    if (toolchain === "mingw32") {
+        const gpp = config.get("compilerPath.mingw32") || "";
+        if (gpp) return path.join(path.dirname(gpp), "gdb.exe");
+        return "C:\\mingw32\\bin\\gdb.exe";
+    }
+    return config.get("gdbPath.mingw64", "C:\\mingw64\\bin\\gdb.exe");
 }
 
 function updateToolchainWidget(context) {
@@ -402,56 +581,47 @@ function updateCompilerWidget(context) {
     COMPILER_WIDGET.tooltip = `Compiler: ${compilerPath || "not set"}. Click to select executable.`;
 }
 
-function updateSfmlWidget(context) {
-    const sfml = getSfmlPaths(context);
-    if (!sfml.enabled) {
-        SFML_WIDGET.text = "📦 No SFML";
-        SFML_WIDGET.tooltip = "SFML disabled (plain C++ build). Click to set SFML or enable.";
-        return;
+function updateOpenglWidgets(context) {
+    const gl = getOpenglConfig(context);
+    const inc = gl.include;
+    const lib = gl.lib;
+
+    if (inc) {
+        OPENGL_INC_WIDGET.text = `📂 GL incl: ${path.basename(inc) || inc}`;
+        OPENGL_INC_WIDGET.tooltip = `OpenGL-related includes (-I):\n${inc}\nClick to set include + lib folders.`;
+    } else {
+        OPENGL_INC_WIDGET.text = "📂 GL incl: (unset)";
+        OPENGL_INC_WIDGET.tooltip = "Set folder for GLFW/GLAD/etc. headers (-I). Click to configure.";
     }
 
-    const root = sfml.include ? path.dirname(sfml.include) : "";
-    const label = root ? path.basename(root) : "SFML";
-    SFML_WIDGET.text = `📦 ${label}`;
-    SFML_WIDGET.tooltip = `SFML include: ${sfml.include || "?"}\nSFML lib: ${sfml.lib || "?"}. Click to set paths or disable.`;
+    if (lib) {
+        OPENGL_LIB_WIDGET.text = `📚 GL lib: ${path.basename(lib) || lib}`;
+        OPENGL_LIB_WIDGET.tooltip = `MinGW-w64 libs (-L):\n${lib}\nClick to set include + lib folders.`;
+    } else {
+        OPENGL_LIB_WIDGET.text = "📚 GL lib: (unset)";
+        OPENGL_LIB_WIDGET.tooltip = "Set MinGW lib folder (libglfw3, glfw3.dll). Click to configure.";
+    }
+
+    const modeLabel = gl.glfwLinkMode === "static" ? "static GLFW" : "dynamic GLFW";
+    GLFW_LINK_WIDGET.text = `🔗 ${modeLabel}`;
+    GLFW_LINK_WIDGET.tooltip =
+        gl.glfwLinkMode === "static"
+            ? "Linking -lglfw3 (no glfw3.dll). Click to switch to dynamic."
+            : "Linking -lglfw3dll; copy glfw3.dll to bin when running. Click to switch to static.";
 }
 
 function updateImGuiWidget(context) {
     const imgui = getImGuiConfig(context);
     if (!imgui.enabled) {
         IMGUI_WIDGET.text = "🧩 ImGui: Off";
-        IMGUI_WIDGET.tooltip = "ImGui-SFML disabled. Click to enable and set paths.";
+        IMGUI_WIDGET.tooltip = "ImGui disabled. Click to enable and set Dear ImGui folder.";
         return;
     }
 
-    IMGUI_WIDGET.text = "🧩 ImGui: On";
-    IMGUI_WIDGET.tooltip = `ImGui include: ${imgui.include || "?"}\nImGui-SFML include: ${imgui.sfmlInclude || "?"}\nMode: ${imgui.linkPrebuilt ? "prebuilt libs" : "compile sources"}. Click to change.`;
-}
-
-function getSfmlDllModules(context) {
-    const stored = context.workspaceState.get(SFML_DLL_MODULES_KEY);
-    if (Array.isArray(stored) && stored.length > 0) return stored;
-    return ["system", "window", "graphics"];
-}
-
-function getSfmlBinPath(context) {
-    const sfml = getSfmlPaths(context);
-    if (!sfml.enabled || !sfml.include) return null;
-    const root = path.dirname(sfml.include);
-    return path.join(root, "bin");
-}
-
-function updateSfmlDllWidget(context) {
-    const sfml = getSfmlPaths(context);
-    if (!sfml.enabled) {
-        SFML_DLL_WIDGET.hide();
-        return;
-    }
-
-    const modules = getSfmlDllModules(context);
-    SFML_DLL_WIDGET.text = modules.length === 0 ? "📦 DLLs: none" : `📦 DLLs: ${modules.join(", ")}`;
-    SFML_DLL_WIDGET.tooltip = "Select which SFML DLLs to copy from SFML/bin to project output. Click to change.";
-    SFML_DLL_WIDGET.show();
+    const root = imgui.sourceDir || imgui.include;
+    const label = root ? path.basename(root) : "ImGui";
+    IMGUI_WIDGET.text = `🧩 ${label}`;
+    IMGUI_WIDGET.tooltip = `Dear ImGui: ${root || "?"}\nCompiles core + imgui_impl_glfw / imgui_impl_opengl3. Click to change.`;
 }
 
 function getProblemsForProject(context) {
@@ -510,9 +680,42 @@ function getProjectExePath(projectPath) {
 
 function copyNewProjectDlls(projectRoot) {
     const libDir = path.join(projectRoot, "lib");
-    for (const src of NEW_PROJECT_DLL_SOURCES) {
+    for (const src of NEW_PROJECT_MINGW_DLL_SOURCES) {
         if (!fs.existsSync(src)) continue;
         fs.copyFileSync(src, path.join(libDir, path.basename(src)));
+    }
+}
+
+/** Copy GLFW DLL and MinGW runtime from configured lib folder into project bin (dynamic GLFW). */
+function copyRuntimeDllsToBin(context, projectRoot) {
+    const gl = getOpenglConfig(context);
+    const binPath = getProjectBinPath(projectRoot);
+    ensureDir(binPath);
+
+    if (gl.lib && gl.glfwLinkMode !== "static") {
+        const glfwDll = path.join(gl.lib, "glfw3.dll");
+        if (fs.existsSync(glfwDll)) {
+            try {
+                fs.copyFileSync(glfwDll, path.join(binPath, "glfw3.dll"));
+            } catch (e) {
+                console.warn("taskbar: could not copy glfw3.dll", e);
+            }
+        }
+    }
+
+    const projLib = path.join(projectRoot, "lib");
+    if (fs.existsSync(projLib)) {
+        const files = fs.readdirSync(projLib);
+        for (const f of files) {
+            if (!f.toLowerCase().endsWith(".dll")) continue;
+            const src = path.join(projLib, f);
+            const dest = path.join(binPath, f);
+            try {
+                fs.copyFileSync(src, dest);
+            } catch (e) {
+                console.warn("taskbar: could not copy", f, e);
+            }
+        }
     }
 }
 
@@ -522,9 +725,8 @@ async function refreshUi(context) {
     updateProblemsWidget(context);
     updateToolchainWidget(context);
     updateCompilerWidget(context);
-    updateSfmlWidget(context);
+    updateOpenglWidgets(context);
     updateImGuiWidget(context);
-    updateSfmlDllWidget(context);
     syncVscodeFiles(context);
 }
 
@@ -537,16 +739,16 @@ function activate(context) {
     CreateWidget(BUILD_RUN_WIDGET, "🚀 Build & Run", "Build, compile & run", "taskbar.buildAndRun", context, "#f8812f");
     CreateWidget(BUILD_DEBUG_WIDGET, "🪲 Build & Debug", "Build, compile & debug", "taskbar.buildAndDebug", context, "#be173b");
     CreateWidget(CLEAN_WIDGET, "🗑️ Clean", "Clean bin folder and optionally build", "taskbar.cleanBuild", context, "#797dde");
-    CreateWidget(DOCS_WIDGET, "📖 Docs", "Open C++ or SFML documentation", "taskbar.openDocs", context, "#a7c96b");
+    CreateWidget(DOCS_WIDGET, "📖 Docs", "Open C++ / OpenGL / ImGui docs", "taskbar.openDocs", context, "#a7c96b");
     CreateWidget(WORKSPACE_WIDGET, WORKSPACE_WIDGET.text, WORKSPACE_WIDGET.tooltip, "taskbar.setWorkspaceRoot", context, "#d8b4fe");
     CreateWidget(PROJECT_WIDGET, PROJECT_WIDGET.text, PROJECT_WIDGET.tooltip, "taskbar.setProjectPath", context);
-    CreateWidget(NEW_PROJECT_WIDGET, "➕ New Project", "Create a new SFML project", "taskbar.newProject", context, "#79d8a9");
+    CreateWidget(NEW_PROJECT_WIDGET, "➕ New Project", "Create a new ImGui + OpenGL project", "taskbar.newProject", context, "#79d8a9");
     CreateWidget(TOOLCHAIN_WIDGET, TOOLCHAIN_WIDGET.text, TOOLCHAIN_WIDGET.tooltip, "taskbar.setToolchain", context, "#ffd340");
     CreateWidget(COMPILER_WIDGET, COMPILER_WIDGET.text, COMPILER_WIDGET.tooltip, "taskbar.setCompilerPath", context, "#82c7eb");
-    CreateWidget(SFML_WIDGET, SFML_WIDGET.text, SFML_WIDGET.tooltip, "taskbar.setSfmlPath", context, "#4582c7");
+    CreateWidget(OPENGL_INC_WIDGET, OPENGL_INC_WIDGET.text, OPENGL_INC_WIDGET.tooltip, "taskbar.setOpenglPaths", context, "#4582c7");
+    CreateWidget(OPENGL_LIB_WIDGET, OPENGL_LIB_WIDGET.text, OPENGL_LIB_WIDGET.tooltip, "taskbar.setOpenglPaths", context, "#5a9fd4");
+    CreateWidget(GLFW_LINK_WIDGET, GLFW_LINK_WIDGET.text, GLFW_LINK_WIDGET.tooltip, "taskbar.setGlfwLinkMode", context, "#c586c0");
     CreateWidget(IMGUI_WIDGET, IMGUI_WIDGET.text, IMGUI_WIDGET.tooltip, "taskbar.setImGuiMode", context, "#e383c4");
-    CreateWidget(SFML_DLL_WIDGET, SFML_DLL_WIDGET.text, SFML_DLL_WIDGET.tooltip, "taskbar.setSfmlDllModules", context, "#82c7eb");
-    updateSfmlDllWidget(context);
 
     const diagSub = vscode.languages.onDidChangeDiagnostics(() => updateProblemsWidget(context));
     context.subscriptions.push(diagSub);
@@ -592,7 +794,7 @@ function activate(context) {
         }
 
         const name = await vscode.window.showInputBox({
-            prompt: "New project name (e.g. MyGame)",
+            prompt: "New project name (e.g. MyApp)",
             placeHolder: "ProjectName",
             validateInput: (value) => {
                 if (!value || !value.trim()) return "Enter a name.";
@@ -683,55 +885,70 @@ function activate(context) {
         vscode.window.showInformationMessage(`Compiler set to: ${uris[0].fsPath}`);
     });
 
-    const setSfmlPathCommand = vscode.commands.registerCommand("taskbar.setSfmlPath", async () => {
-        const sfml = getSfmlPaths(context);
+    const setOpenglPathsCommand = vscode.commands.registerCommand("taskbar.setOpenglPaths", async () => {
+        const gl = getOpenglConfig(context);
+        const currentInc = gl.include;
+        const currentLib = gl.lib;
+
+        const incUris = await vscode.window.showOpenDialog({
+            canSelectFolders: true,
+            canSelectMany: false,
+            title: "OpenGL-related include folder (-I: GLFW, GLAD, etc.)",
+            defaultUri: currentInc ? vscode.Uri.file(currentInc) : undefined
+        });
+        if (!incUris?.length) return;
+
+        const libUris = await vscode.window.showOpenDialog({
+            canSelectFolders: true,
+            canSelectMany: false,
+            title: "MinGW-w64 library folder (-L: .a and glfw3.dll)",
+            defaultUri: currentLib ? vscode.Uri.file(currentLib) : undefined
+        });
+        if (!libUris?.length) return;
+
+        await context.workspaceState.update(OPENGL_INCLUDE_KEY, incUris[0].fsPath);
+        await context.workspaceState.update(OPENGL_LIB_KEY, libUris[0].fsPath);
+
+        updateOpenglWidgets(context);
+        syncVscodeFiles(context);
+        vscode.window.showInformationMessage(
+            `OpenGL paths set.\ninclude: ${incUris[0].fsPath}\nlib: ${libUris[0].fsPath}`
+        );
+    });
+
+    const setGlfwLinkModeCommand = vscode.commands.registerCommand("taskbar.setGlfwLinkMode", async () => {
+        const gl = getOpenglConfig(context);
         const pick = await vscode.window.showQuickPick(
             [
-                { label: "$(file-directory) Select SFML root folder", action: "select" },
-                { label: "$(close) Disable SFML (plain C++ build)", action: "disable" }
+                {
+                    label: "$(package) Dynamic GLFW (-lglfw3dll + glfw3.dll)",
+                    mode: "dynamic",
+                    picked: gl.glfwLinkMode !== "static"
+                },
+                {
+                    label: "$(archive) Static GLFW (-lglfw3, no glfw3.dll)",
+                    mode: "static",
+                    picked: gl.glfwLinkMode === "static"
+                }
             ],
-            { placeHolder: sfml.enabled ? "SFML is enabled. Change path or disable." : "SFML is disabled. Enable and set path." }
+            { placeHolder: "How to link GLFW", title: "GLFW link mode" }
         );
         if (!pick) return;
 
-        const config = vscode.workspace.getConfiguration("taskbar");
-
-        if (pick.action === "disable") {
-            await context.workspaceState.update(SFML_ENABLED_KEY, false);
-            updateSfmlWidget(context);
-            updateSfmlDllWidget(context);
-            syncVscodeFiles(context);
-            vscode.window.showInformationMessage("SFML disabled. Build will compile without SFML.");
-            return;
-        }
-
-        const uris = await vscode.window.showOpenDialog({
-            canSelectFolders: true,
-            canSelectMany: false,
-            title: "Select SFML root folder (containing include/ and lib/)"
-        });
-        if (!uris?.length) return;
-
-        const root = uris[0].fsPath;
-        const includePath = path.join(root, "include");
-        const libPath = path.join(root, "lib");
-        await context.workspaceState.update(SFML_ENABLED_KEY, true);
-        await config.update("sfml.include", includePath, vscode.ConfigurationTarget.Workspace);
-        await config.update("sfml.lib", libPath, vscode.ConfigurationTarget.Workspace);
-        updateSfmlWidget(context);
-        updateSfmlDllWidget(context);
+        await context.workspaceState.update(GLFW_LINK_MODE_KEY, pick.mode);
+        updateOpenglWidgets(context);
         syncVscodeFiles(context);
-        vscode.window.showInformationMessage(`SFML enabled. include=${includePath}, lib=${libPath}`);
+        vscode.window.showInformationMessage(`GLFW link mode: ${pick.mode}`);
     });
 
     const setImGuiModeCommand = vscode.commands.registerCommand("taskbar.setImGuiMode", async () => {
         const imgui = getImGuiConfig(context);
         const pick = await vscode.window.showQuickPick(
             [
-                { label: "$(check) Enable / Configure ImGui-SFML", action: "enable" },
-                { label: "$(close) Disable ImGui-SFML", action: "disable" }
+                { label: "$(check) Enable / set Dear ImGui folder", action: "enable" },
+                { label: "$(close) Disable ImGui sources in build", action: "disable" }
             ],
-            { placeHolder: imgui.enabled ? "ImGui-SFML is enabled." : "ImGui-SFML is disabled." }
+            { placeHolder: imgui.enabled ? "ImGui is enabled." : "ImGui is disabled." }
         );
         if (!pick) return;
 
@@ -739,111 +956,33 @@ function activate(context) {
             await context.workspaceState.update(IMGUI_ENABLED_KEY, false);
             updateImGuiWidget(context);
             syncVscodeFiles(context);
-            vscode.window.showInformationMessage("ImGui-SFML disabled.");
+            vscode.window.showInformationMessage("ImGui disabled for this workspace.");
             return;
         }
 
-        const config = vscode.workspace.getConfiguration("taskbar");
         const imguiUri = await vscode.window.showOpenDialog({
             canSelectFolders: true,
             canSelectMany: false,
-            title: "Select Dear ImGui root folder"
+            title: "Select Dear ImGui root (contains imgui.cpp and backends/)"
         });
         if (!imguiUri?.length) return;
 
-        const imguiSfmlUri = await vscode.window.showOpenDialog({
-            canSelectFolders: true,
-            canSelectMany: false,
-            title: "Select ImGui-SFML root folder"
-        });
-        if (!imguiSfmlUri?.length) return;
-
-        const modePick = await vscode.window.showQuickPick(
-            [
-                { label: "Compile ImGui sources directly", mode: "compile" },
-                { label: "Link prebuilt imgui/imgui-sfml libraries", mode: "prebuilt" }
-            ],
-            { placeHolder: "Choose ImGui build integration mode" }
-        );
-        if (!modePick) return;
-
-        const imguiRoot = imguiUri[0].fsPath;
-        const imguiSfmlRoot = imguiSfmlUri[0].fsPath;
+        const root = imguiUri[0].fsPath;
         await context.workspaceState.update(IMGUI_ENABLED_KEY, true);
-        await config.update("imgui.enabled", true, vscode.ConfigurationTarget.Workspace);
-        await config.update("imgui.include", imguiRoot, vscode.ConfigurationTarget.Workspace);
-        await config.update("imgui.sourceDir", imguiRoot, vscode.ConfigurationTarget.Workspace);
-        await config.update("imguiSfml.include", imguiSfmlRoot, vscode.ConfigurationTarget.Workspace);
-        await config.update("imgui.sfmlCpp", path.join(imguiSfmlRoot, "imgui-SFML.cpp"), vscode.ConfigurationTarget.Workspace);
-        await config.update("imgui.linkPrebuilt", modePick.mode === "prebuilt", vscode.ConfigurationTarget.Workspace);
-
-        if (modePick.mode === "prebuilt") {
-            const libUri = await vscode.window.showOpenDialog({
-                canSelectFolders: true,
-                canSelectMany: false,
-                title: "Select library folder containing imgui and imgui-sfml libs"
-            });
-            if (libUri?.length) {
-                await config.update("imgui.lib", libUri[0].fsPath, vscode.ConfigurationTarget.Workspace);
-            }
-        }
+        await context.workspaceState.update(IMGUI_INCLUDE_KEY, root);
+        await context.workspaceState.update(IMGUI_SOURCE_DIR_KEY, root);
 
         updateImGuiWidget(context);
         syncVscodeFiles(context);
-        vscode.window.showInformationMessage("ImGui-SFML enabled and .vscode files updated.");
-    });
-
-    const setSfmlDllModulesCommand = vscode.commands.registerCommand("taskbar.setSfmlDllModules", async () => {
-        const sfml = getSfmlPaths(context);
-        if (!sfml.enabled) {
-            vscode.window.showInformationMessage("Enable SFML first (click the SFML widget to set path).");
-            return;
-        }
-
-        const current = getSfmlDllModules(context);
-        const binPath = getSfmlBinPath(context);
-        let options = SFML_MODULES.map((mod) => ({
-            label: `sfml-${mod}.dll`,
-            description: mod,
-            module: mod,
-            picked: current.includes(mod)
-        }));
-
-        if (binPath && fs.existsSync(binPath)) {
-            const files = fs.readdirSync(binPath).filter((f) => f.startsWith("sfml-") && f.endsWith(".dll"));
-            if (files.length > 0) {
-                const byMod = new Map();
-                for (const f of files) {
-                    const mod = f.replace(/^sfml-(.+?)-\d+\.dll$/i, "$1") || f.replace(/^sfml-|-\d*\.dll$/gi, "");
-                    if (!byMod.has(mod)) byMod.set(mod, f);
-                }
-                options = [...byMod.entries()].map(([mod, file]) => ({
-                    label: file,
-                    description: mod,
-                    module: mod,
-                    picked: current.includes(mod)
-                }));
-            }
-        }
-
-        const picked = await vscode.window.showQuickPick(options, {
-            placeHolder: "Select SFML DLLs to copy to output (from SFML/bin)",
-            title: "SFML DLLs",
-            canPickMany: true,
-            matchOnDescription: true
-        });
-        if (picked === undefined) return;
-
-        const modules = [...new Set(picked.map((p) => p.module))];
-        await context.workspaceState.update(SFML_DLL_MODULES_KEY, modules);
-        updateSfmlDllWidget(context);
-        vscode.window.showInformationMessage(`SFML DLLs to copy: ${modules.length ? modules.join(", ") : "none"}`);
+        vscode.window.showInformationMessage(`ImGui enabled: ${root}`);
     });
 
     async function getBuildTask() {
         const tasks = await vscode.tasks.fetchTasks();
+        const matches = (t) =>
+            t.name === BUILD_TASK_LABEL || (t.definition && t.definition.label === BUILD_TASK_LABEL);
         return (
-            tasks.find((t) => t.name === "Build current project (SFML)") ||
+            tasks.find(matches) ||
             tasks.find((t) => t.group === vscode.TaskGroup.Build) ||
             tasks[0]
         );
@@ -864,6 +1003,8 @@ function activate(context) {
             vscode.window.showErrorMessage("No project folder is set.");
             return;
         }
+
+        copyRuntimeDllsToBin(context, projectPath);
 
         const exePath = getProjectExePath(projectPath);
         if (!exePath || !fs.existsSync(exePath)) {
@@ -894,7 +1035,8 @@ function activate(context) {
             if (e.exitCode === 0) {
                 const projectPath = getProjectFullPath(context);
                 const exePath = projectPath ? getProjectExePath(projectPath) : null;
-                if (exePath && fs.existsSync(exePath)) {
+                if (exePath && fs.existsSync(exePath) && projectPath) {
+                    copyRuntimeDllsToBin(context, projectPath);
                     const term = vscode.window.createTerminal({
                         name: "Run",
                         cwd: projectPath,
@@ -922,12 +1064,17 @@ function activate(context) {
             return;
         }
 
+        const gdbPath = getGdbPath(context);
+        const buildLabel = buildTask.definition?.label || buildTask.name;
+
         buildAndDebugListener = vscode.tasks.onDidEndTaskProcess((e) => {
-            if (e.execution.task.name !== buildTask.name) return;
+            const ended = e.execution.task.definition?.label || e.execution.task.name;
+            if (ended !== buildLabel) return;
 
             const projectPath = getProjectFullPath(context);
             const exePath = projectPath ? getProjectExePath(projectPath) : null;
-            if (e.exitCode === 0 && exePath && fs.existsSync(exePath)) {
+            if (e.exitCode === 0 && exePath && fs.existsSync(exePath) && projectPath) {
+                copyRuntimeDllsToBin(context, projectPath);
                 vscode.debug.startDebugging(undefined, {
                     type: "cppdbg",
                     request: "launch",
@@ -935,7 +1082,7 @@ function activate(context) {
                     program: exePath,
                     cwd: projectPath,
                     MIMode: "gdb",
-                    miDebuggerPath: "C:\\mingw64\\bin\\gdb.exe",
+                    miDebuggerPath: gdbPath,
                     setupCommands: [{ description: "Enable pretty-printing", text: "-enable-pretty-printing", ignoreFailures: true }]
                 });
             }
@@ -996,9 +1143,9 @@ function activate(context) {
 
     const DOCS_LINKS = [
         { label: "C++ Reference (cppreference.com)", url: "https://en.cppreference.com/w/" },
-        { label: "SFML Documentation", url: "https://www.sfml-dev.org/documentation.php" },
-        { label: "Dear ImGui", url: "https://github.com/ocornut/imgui" },
-        { label: "ImGui-SFML", url: "https://github.com/SFML/imgui-sfml" }
+        { label: "OpenGL Registry / specs", url: "https://www.khronos.org/opengl/" },
+        { label: "GLFW documentation", url: "https://www.glfw.org/documentation.html" },
+        { label: "Dear ImGui", url: "https://github.com/ocornut/imgui" }
     ];
 
     const openDocsCommand = vscode.commands.registerCommand("taskbar.openDocs", async () => {
@@ -1017,9 +1164,9 @@ function activate(context) {
         getProjectPathForTaskCommand,
         setToolchainCommand,
         setCompilerPathCommand,
-        setSfmlPathCommand,
+        setOpenglPathsCommand,
+        setGlfwLinkModeCommand,
         setImGuiModeCommand,
-        setSfmlDllModulesCommand,
         focusProblemsCommand,
         cleanBuildCommand,
         openDocsCommand,

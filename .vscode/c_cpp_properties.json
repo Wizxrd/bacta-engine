@@ -3,8 +3,11 @@
         {
             "name": "Win32",
             "includePath": [
-                "d:/Github/bacta-engine/projects/milkywalk-simulator/include",
-                "C:/SFML-3.0.2/include"
+                "d:/Github/bacta-engine/projects/solar-system-simulator/include",
+                "c:/glfw-3.4/include",
+                "c:/glfw-3.4/include",
+                "c:/glew-2.3.1/include",
+                "c:/glm-0.9.3.2/glm"
             ],
             "defines": [
                 "_DEBUG",
@@ -18,8 +21,11 @@
             "intelliSenseMode": "windows-gcc-x64",
             "browse": {
                 "path": [
-                    "d:/Github/bacta-engine/projects/milkywalk-simulator/include",
-                    "C:/SFML-3.0.2/include"
+                    "d:/Github/bacta-engine/projects/solar-system-simulator/include",
+                    "c:/glfw-3.4/include",
+                    "c:/glfw-3.4/include",
+                    "c:/glew-2.3.1/include",
+                    "c:/glm-0.9.3.2/glm"
                 ]
             }
         }
